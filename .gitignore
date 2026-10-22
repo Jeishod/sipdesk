@@ -1,0 +1,51 @@
+# macOS and editor state
+.DS_Store
+.AppleDouble/
+.idea/
+.vscode/
+*.swp
+*~
+
+# SwiftPM, Xcode and all local build variants
+.build/
+.build-*/
+.swiftpm/
+.dependencies/
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# Generated distribution/debug artifacts
+*.app/
+*.dmg
+*.pkg
+*.dSYM/
+*.a
+*.o
+*.profraw
+*.profdata
+
+# Python test caches
+__pycache__/
+*.py[cod]
+.venv/
+
+# Credentials, local configuration and diagnostics (never publish)
+.env
+.env.*
+*.local
+*.log
+*.pcap
+*.pcapng
+*.key
+*.pem
+*.p12
+*.pfx
+*.mobileprovision
+account.json
+profiles.json
+history.json
+audio.json
+private/
+secrets/

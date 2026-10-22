@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>SIPDesk se conecta a su servidor SIP y transmite el audio de las llamadas, incluso en la red local.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SIPDesk usa el micrófono solo para sus llamadas SIP.</string>
+</dict>
+</plist>

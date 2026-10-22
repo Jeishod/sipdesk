@@ -1,0 +1,33 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  headless:
+    name: Swift and SIP loopback
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Show toolchain
+        run: |
+          uname -m
+          xcodebuild -version
+          swift --version
+          /usr/bin/python3 --version
+      # No GUI tests, permissions prompts, real SIP credentials or artifact uploads.
+      - name: Run Swift tests and synthetic SIP loopback
+        run: ./Scripts/test.sh
