@@ -19,8 +19,8 @@ cd "$ROOT"
 ./Scripts/bootstrap-pjsip.sh
 BUILD_ARGS=()
 if [[ -n "${SIPDESK_BUILD_PATH:-}" ]]; then BUILD_ARGS=(--scratch-path "$SIPDESK_BUILD_PATH"); fi
-swift build "${BUILD_ARGS[@]}" -c "$CONFIGURATION" --product SIPDesk
-BIN="$(swift build "${BUILD_ARGS[@]}" -c "$CONFIGURATION" --show-bin-path)"
+swift build ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} -c "$CONFIGURATION" --product SIPDesk
+BIN="$(swift build ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} -c "$CONFIGURATION" --show-bin-path)"
 mkdir -p build/assets
 xcrun swift Resources/make-icon.swift "$ROOT/build/assets"
 iconutil -c icns build/assets/AppIcon.iconset -o build/assets/AppIcon.icns
@@ -39,9 +39,22 @@ cp -R Resources/Localization/*.lproj "$APP/Contents/Resources/"
 cp build/assets/AppIcon.icns build/assets/ringtone.wav build/assets/ringback.wav "$APP/Contents/Resources/"
 cp .dependencies/pjsip/licenses/* "$APP/Contents/Resources/Licenses/"
 cp THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/Licenses/"
-codesign --force --sign "${SIGNING_IDENTITY:--}" --options runtime \
+SIGNING_IDENTITY="${SIGNING_IDENTITY:--}"
+# Notarization requires a secure timestamp; ad-hoc signatures cannot carry one.
+TIMESTAMP=--timestamp
+if [[ "$SIGNING_IDENTITY" == "-" ]]; then TIMESTAMP=--timestamp=none; fi
+codesign --force --sign "$SIGNING_IDENTITY" --options runtime "$TIMESTAMP" \
     --entitlements Resources/SIPDesk.entitlements "$APP"
-codesign --verify --strict "$APP"
+codesign --verify --deep --strict "$APP"
+if [[ "$SIGNING_IDENTITY" == "Developer ID Application:"* ]]; then
+    SIGNATURE="$(codesign -dvvv "$APP" 2>&1)"
+    for expected in 'Authority=Developer ID Application:' 'Timestamp=' '(runtime)'; do
+        if [[ "$SIGNATURE" != *"$expected"* ]]; then
+            printf 'Signature is missing %s\n' "$expected" >&2
+            exit 1
+        fi
+    done
+fi
 if pgrep -f "^$OUTPUT_DIRECTORY/SIPDesk.app/Contents/MacOS/SIPDesk" >/dev/null; then
     printf '\nSIPDesk is running. Quit it before replacing the built app.\n' >&2
     exit 1
