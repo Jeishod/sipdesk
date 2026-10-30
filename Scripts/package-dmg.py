@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Package the tested tray app, installation notes, and build sources."""
 import hashlib
+import json
 import os
 from pathlib import Path
 import plistlib
@@ -13,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 APP = Path(os.environ.get("SIPDESK_PACKAGE_APP", ROOT / "build/SIPDesk.app"))
 with (APP / "Contents/Info.plist").open("rb") as file:
     VERSION = plistlib.load(file)["CFBundleShortVersionString"]
-OUT = ROOT / "build/distribution"
+OUT = Path(os.environ.get("SIPDESK_DISTRIBUTION_DIRECTORY", ROOT / "build/distribution"))
 OUT.mkdir(parents=True, exist_ok=True)
 DMG = OUT / f"SIPDesk-{VERSION}-AppleSilicon.dmg"
 
@@ -22,12 +23,66 @@ def run(*args):
     return subprocess.run(args, check=True, capture_output=True, text=True).stdout
 
 
-run("codesign", "--verify", "--strict", str(APP))
+def signature(path):
+    return subprocess.run(["codesign", "-dvvv", str(path)], check=True, capture_output=True, text=True).stderr
+
+
+def notarize(path, staple_target=None):
+    """Submit to Apple's notary service, then staple and validate the ticket."""
+    staple_target = staple_target or path
+    result = subprocess.run(["xcrun", "notarytool", "submit", str(path), "--keychain-profile", NOTARY_PROFILE,
+                             "--wait", "--output-format", "json"], capture_output=True, text=True)
+    try:
+        submission = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        raise SystemExit(f"notarytool failed for {path.name}:\n{result.stderr}")
+    if submission.get("status") != "Accepted":
+        log = subprocess.run(["xcrun", "notarytool", "log", submission["id"], "--keychain-profile", NOTARY_PROFILE],
+                             capture_output=True, text=True).stdout
+        raise SystemExit(f"Notarization of {path.name} is {submission.get('status')} ({submission.get('id')}):\n{log}")
+    print(f"Notarized {path.name}: {submission['id']}")
+    run("xcrun", "stapler", "staple", str(staple_target))
+    run("xcrun", "stapler", "validate", str(staple_target))
+
+
+def assess(*args):
+    """Gatekeeper must accept the item as notarized Developer ID software."""
+    result = subprocess.run(["spctl", "--assess", "-vv", *map(str, args)], capture_output=True, text=True)
+    if result.returncode != 0 or "source=Notarized Developer ID" not in result.stderr:
+        raise SystemExit(f"Gatekeeper rejected {args[-1]}:\n{result.stderr}")
+    print(result.stderr.strip())
+
+
+run("codesign", "--verify", "--deep", "--strict", str(APP))
+APP_SIGNATURE = signature(APP)
+# Distribution mode follows the app's signature: build.sh with a Developer ID identity.
+DEVELOPER_ID = next((line.removeprefix("Authority=") for line in APP_SIGNATURE.splitlines()
+                     if line.startswith("Authority=Developer ID Application:")), None)
+NOTARY_PROFILE = os.environ.get("SIPDESK_NOTARY_PROFILE")
+if DEVELOPER_ID:
+    if not NOTARY_PROFILE:
+        raise SystemExit("Developer ID build: set SIPDESK_NOTARY_PROFILE to a notarytool keychain profile.")
+    if "Timestamp=" not in APP_SIGNATURE or "(runtime)" not in APP_SIGNATURE:
+        raise SystemExit("Developer ID build needs a secure timestamp and hardened runtime; rebuild with build.sh.")
+    SIGNING_NOTE = f"""Signed with {DEVELOPER_ID} and notarized by Apple.
+macOS opens it without security warnings."""
+else:
+    print("App is not Developer ID signed: the DMG will not be signed or notarized.")
+    SIGNING_NOTE = """This development build is ad-hoc signed, not Developer ID signed or notarized.
+If macOS blocks it, after verifying the sender/source use System Settings >
+Privacy & Security > Open Anyway, if available. Managed Macs may require IT
+approval. Do not disable Gatekeeper or system security globally."""
 with tempfile.TemporaryDirectory(prefix="sipdesk-dmg-", dir=os.environ["TMPDIR"]) as temporary:
     work = Path(temporary)
     stage = work / "image"
     stage.mkdir()
     shutil.copytree(APP, stage / APP.name, symlinks=True)
+    if DEVELOPER_ID:
+        # Staple the app itself so it passes Gatekeeper offline after leaving the DMG.
+        submission = work / "SIPDesk-notarization.zip"
+        run("ditto", "-c", "-k", "--keepParent", str(stage / APP.name), str(submission))
+        notarize(submission, stage / APP.name)
+        assess("--type", "execute", stage / APP.name)
     (stage / "Applications").symlink_to("/Applications")
     (stage / "INSTALL.txt").write_text(f"""SIPDesk — Tray edition {VERSION}
 macOS 14 or later; Apple Silicon (M1/M2/M3/M4 and later). Intel is not supported.
@@ -41,10 +96,7 @@ INSTALLATION
    macOS prompt. If denied, use the System Settings link. Calls do not request
    permission automatically.
 
-This development build is ad-hoc signed, not Developer ID signed or notarized.
-If macOS blocks it, after verifying the sender/source use System Settings >
-Privacy & Security > Open Anyway, if available. Managed Macs may require IT
-approval. Do not disable Gatekeeper or system security globally.
+{SIGNING_NOTE}
 
 Multiple saved SIP profiles; one active line and one active call. Add/edit/switch
 profiles in Settings. Profile switching is blocked during an active call.
@@ -74,6 +126,9 @@ component notices are in the app's Contents/Resources/Licenses directory.
     upstream = ROOT / ".dependencies/downloads/pjproject-c7fa6bfb85172f038cf37986696a16b3987391ea.tar.gz"
     shutil.copy2(upstream, source_dir / upstream.name)
     print(run("hdiutil", "create", "-volname", "SIPDesk", "-srcfolder", str(stage), "-format", "UDZO", "-ov", str(DMG)))
+    if DEVELOPER_ID:
+        run("codesign", "--force", "--sign", DEVELOPER_ID, "--timestamp", str(DMG))
+        run("codesign", "--verify", "--strict", str(DMG))
     print(run("hdiutil", "verify", str(DMG)))
     # Mount the actual deliverable and execute its app in network-free preview mode.
     attach = subprocess.run(["hdiutil", "attach", "-readonly", "-nobrowse", "-plist", str(DMG)], check=True, capture_output=True)
@@ -83,7 +138,10 @@ component notices are in the app's Contents/Resources/Licenses directory.
         assert (mount / "Applications").is_symlink()
         assert os.readlink(mount / "Applications") == "/Applications"
         assert (mount / "Sources/SIPDesk-build-sources.tar.gz").is_file()
-        run("codesign", "--verify", "--strict", str(mount / "SIPDesk.app"))
+        run("codesign", "--verify", "--deep", "--strict", str(mount / "SIPDesk.app"))
+        if DEVELOPER_ID:
+            run("xcrun", "stapler", "validate", str(mount / "SIPDesk.app"))
+            assess("--type", "execute", mount / "SIPDesk.app")
         original = APP / "Contents/MacOS/SIPDesk"
         packaged = mount / "SIPDesk.app/Contents/MacOS/SIPDesk"
         assert hashlib.sha256(original.read_bytes()).digest() == hashlib.sha256(packaged.read_bytes()).digest()
@@ -92,6 +150,10 @@ component notices are in the app's Contents/Resources/Licenses directory.
         print("Mounted DMG: app signature, binary hash, Applications link, sources and tray lifecycle verified.")
     finally:
         print(run("hdiutil", "detach", str(mount)))
+if DEVELOPER_ID:
+    # Stapling changes the image, so it happens after the mounted checks.
+    notarize(DMG)
+    assess("--type", "open", "--context", "context:primary-signature", DMG)
 checksum = hashlib.sha256(DMG.read_bytes()).hexdigest()
 (OUT / (DMG.name + ".sha256")).write_text(checksum + "  " + DMG.name + "\n")
 print(f"DMG: {DMG}\nSize: {DMG.stat().st_size / 1024 / 1024:.1f} MiB\nSHA256: {checksum}")

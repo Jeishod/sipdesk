@@ -5,7 +5,7 @@ PJSIP for calls. Connect directly to your own PBX or SIP provider—no browser o
 Electron runtime, and no SipDesk service account.
 
 > Early-stage, source-build project for **Apple Silicon · macOS 14+**.
-> [Download](https://github.com/Jeishod/sipdesk/releases/latest) · Ad-hoc signed, not notarized.
+> [Download](https://github.com/Jeishod/sipdesk/releases/latest) · Release DMGs are notarized when built with a Developer ID (see [Notarized DMG](#notarized-dmg)).
 
 <p align="center">
   <img src="docs/images/dialer.png" width="340" alt="SipDesk synthetic preview: dark menu-bar dialer, offline, empty number field">
@@ -53,8 +53,25 @@ for microphone access and bundled resources.
 
 Builds are ad-hoc signed by default. An existing signing identity can be supplied
 with `SIGNING_IDENTITY="Your existing signing identity" ./build.sh`; the script
-creates no certificates and performs no notarization. Rebuilds may trigger fresh
-macOS microphone or Keychain permission checks.
+creates no certificates. Rebuilds may trigger fresh macOS microphone or Keychain
+permission checks.
+
+### Notarized DMG
+
+A release DMG that opens without Gatekeeper warnings needs a **Developer ID
+Application** certificate in the login keychain and a `notarytool` keychain profile
+(App Store Connect API key or Apple ID app-specific password), stored once:
+
+```sh
+xcrun notarytool store-credentials sipdesk-notary --key AuthKey_XXXX.p8 --key-id XXXX --issuer <issuer-uuid>
+SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./build.sh
+SIPDESK_NOTARY_PROFILE=sipdesk-notary python3 Scripts/package-dmg.py
+```
+
+`build.sh` signs with hardened runtime and a secure timestamp. `package-dmg.py`
+notarizes and staples the app, signs the DMG, notarizes and staples it as well, and
+fails unless `spctl` reports `source=Notarized Developer ID` for both. With an
+ad-hoc build it produces an unsigned, non-notarized development DMG.
 
 ### Connect your line
 
@@ -110,7 +127,7 @@ Read [SECURITY.md](SECURITY.md) before sharing diagnostics or reporting a vulner
   need a real test call; this is not an emergency-calling solution.
 - Saved profiles are not simultaneous lines. No transfer, conferencing, video,
   recording, address book, BLF/presence, Opus, G.729 or TURN.
-- No auto-updater, login-item integration, App Store distribution or notarization.
+- No auto-updater, login-item integration or App Store distribution.
   Intel and universal builds are not a supported/verified distribution target.
 - The PJSIP dependency is a pinned **2.17-dev snapshot**, not a stable-release claim.
   Exact revision, checksum and upstream notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

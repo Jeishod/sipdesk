@@ -78,6 +78,7 @@ actor Persistence {
 }
 
 private struct KeychainCredentials: Sendable {
+    // Predates the io.github.jeishod.sipdesk bundle ID; kept so saved passwords still resolve.
     private let service = "local.sipdesk.accounts"
 
     func read(id: UUID) throws -> String? {
