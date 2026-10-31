@@ -273,23 +273,33 @@ struct ContentView: View {
             ScrollView {
                 VStack(spacing: 8) {
                     ForEach(model.profiles) { profile in
+                        let active = model.account?.id == profile.id
                         HStack(spacing: 8) {
                             FullAreaButton(identifier: "profile-\(profile.id.uuidString)", enabled: model.canConfigure, action: { _ in model.selectProfile(profile.id) }) {
-                                HStack {
-                                    Image(systemName: model.account?.id == profile.id ? "checkmark.circle.fill" : "circle")
-                                        .foregroundStyle(model.account?.id == profile.id ? Theme.accent : Theme.muted)
-                                    Text(profile.name).lineLimit(1).layoutPriority(1)
-                                    Text(profile.username).foregroundStyle(Theme.muted)
-                                        .lineLimit(1).truncationMode(.middle)
+                                HStack(spacing: 10) {
+                                    Image(systemName: active ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(active ? Theme.accent : Theme.muted)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(profile.name).fontWeight(.medium).lineLimit(1)
+                                        HStack(spacing: 5) {
+                                            Text(profile.username).lineLimit(1).truncationMode(.middle)
+                                            Text("·")
+                                            if active { Circle().fill(statusColor).frame(width: 6, height: 6) }
+                                            Text(active ? model.presenceTitle : L("Inactive")).lineLimit(1).layoutPriority(1)
+                                        }.font(.system(size: 10)).foregroundStyle(Theme.muted)
+                                    }
                                     Spacer()
-                                }.padding(.horizontal, 9).frame(maxWidth: .infinity, maxHeight: .infinity)
-                            }.frame(height: 34)
+                                }.padding(.horizontal, 10).frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }.frame(height: 48)
                             Button { model.openAccountEditor(profile: profile) } label: { Image(systemName: "pencil") }
                                 .buttonStyle(.plain).disabled(!model.canConfigure).help(L("Edit profile"))
+                                .padding(.trailing, 10)
                         }
+                        .background(Theme.sidebar, in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(active ? Theme.accent.opacity(0.45) : Theme.border, lineWidth: 1))
                     }
-                }
-            }.frame(maxHeight: 80)
+                }.padding(1)
+            }.frame(height: CGFloat(max(min(model.profiles.count, 2) * 56 - 6, 0)))
             Divider().overlay(Theme.border)
             Toggle(L("Do not disturb"), isOn: $model.doNotDisturb)
                 .help(L("Decline incoming calls"))
