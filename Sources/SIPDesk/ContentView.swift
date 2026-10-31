@@ -80,15 +80,15 @@ struct ContentView: View {
                 let x = button.userInterfaceLayoutDirection == .rightToLeft ? 0 : button.bounds.maxX - menu.size.width
                 menu.popUp(positioning: nil, at: NSPoint(x: x, y: button.bounds.maxY + 4), in: button)
             }) {
-                HStack(spacing: 6) {
-                    Circle().fill(statusColor).frame(width: 7, height: 7)
-                    Text(model.presenceTitle).font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Theme.muted).lineLimit(1)
-                    Image(systemName: "chevron.down").font(.system(size: 8)).foregroundStyle(Theme.muted)
+                HStack(spacing: 7) {
+                    Circle().fill(statusColor).frame(width: 9, height: 9)
+                    Text(model.presenceTitle).font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Theme.muted).lineLimit(1).minimumScaleFactor(0.8)
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.muted)
                 }.padding(.leading, 8).padding(.trailing, 4)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                     .contentShape(Rectangle())
-            }.frame(width: 136, height: 40)
+            }.frame(width: 160, height: 40)
                 .accessibilityLabel(L("Status: {0}", String(model.presenceTitle)))
         }.padding(.horizontal, 16).frame(height: 59)
     }
