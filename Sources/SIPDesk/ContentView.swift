@@ -76,16 +76,19 @@ struct ContentView: View {
             Spacer(minLength: 6)
             FullAreaButton(identifier: "presenceMenu", enabled: model.engineReady && !model.configurationBusy, action: { button in
                 let menu = PresenceMenu(model: model)
-                menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.maxY + 4), in: button)
+                // Open under the trailing edge, where the status label sits.
+                let x = button.userInterfaceLayoutDirection == .rightToLeft ? 0 : button.bounds.maxX - menu.size.width
+                menu.popUp(positioning: nil, at: NSPoint(x: x, y: button.bounds.maxY + 4), in: button)
             }) {
-                HStack(spacing: 6) {
-                    Circle().fill(statusColor).frame(width: 7, height: 7)
-                    Text(model.presenceTitle).font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Theme.muted).lineLimit(1)
-                    Image(systemName: "chevron.down").font(.system(size: 8)).foregroundStyle(Theme.muted)
-                }.padding(.horizontal, 8).frame(maxWidth: .infinity, maxHeight: .infinity)
+                HStack(spacing: 7) {
+                    Circle().fill(statusColor).frame(width: 9, height: 9)
+                    Text(model.presenceTitle).font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Theme.muted).lineLimit(1).minimumScaleFactor(0.8)
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.muted)
+                }.padding(.leading, 8).padding(.trailing, 4)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                     .contentShape(Rectangle())
-            }.frame(width: 136, height: 40)
+            }.frame(width: 160, height: 40)
                 .accessibilityLabel(L("Status: {0}", String(model.presenceTitle)))
         }.padding(.horizontal, 16).frame(height: 59)
     }
@@ -273,21 +276,33 @@ struct ContentView: View {
             ScrollView {
                 VStack(spacing: 8) {
                     ForEach(model.profiles) { profile in
+                        let active = model.account?.id == profile.id
                         HStack(spacing: 8) {
                             FullAreaButton(identifier: "profile-\(profile.id.uuidString)", enabled: model.canConfigure, action: { _ in model.selectProfile(profile.id) }) {
-                                HStack {
-                                    Image(systemName: model.account?.id == profile.id ? "checkmark.circle.fill" : "circle")
-                                        .foregroundStyle(model.account?.id == profile.id ? Theme.accent : Theme.muted)
-                                    Text(profile.name).lineLimit(1)
+                                HStack(spacing: 10) {
+                                    Image(systemName: active ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(active ? Theme.accent : Theme.muted)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(profile.name).fontWeight(.medium).lineLimit(1)
+                                        HStack(spacing: 5) {
+                                            Text(profile.username).lineLimit(1).truncationMode(.middle)
+                                            Text("·")
+                                            if active { Circle().fill(statusColor).frame(width: 6, height: 6) }
+                                            Text(active ? model.presenceTitle : L("Inactive")).lineLimit(1).layoutPriority(1)
+                                        }.font(.system(size: 10)).foregroundStyle(Theme.muted)
+                                    }
                                     Spacer()
-                                }.padding(.horizontal, 9).frame(maxWidth: .infinity, maxHeight: .infinity)
-                            }.frame(height: 34)
+                                }.padding(.horizontal, 10).frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }.frame(height: 48)
                             Button { model.openAccountEditor(profile: profile) } label: { Image(systemName: "pencil") }
                                 .buttonStyle(.plain).disabled(!model.canConfigure).help(L("Edit profile"))
+                                .padding(.trailing, 10)
                         }
+                        .background(Theme.sidebar, in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(active ? Theme.accent.opacity(0.45) : Theme.border, lineWidth: 1))
                     }
-                }
-            }.frame(maxHeight: 80)
+                }.padding(1)
+            }.frame(height: CGFloat(max(min(model.profiles.count, 2) * 56 - 6, 0)))
             Divider().overlay(Theme.border)
             Toggle(L("Do not disturb"), isOn: $model.doNotDisturb)
                 .help(L("Decline incoming calls"))
