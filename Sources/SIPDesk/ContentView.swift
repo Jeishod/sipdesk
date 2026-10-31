@@ -278,7 +278,9 @@ struct ContentView: View {
                                 HStack {
                                     Image(systemName: model.account?.id == profile.id ? "checkmark.circle.fill" : "circle")
                                         .foregroundStyle(model.account?.id == profile.id ? Theme.accent : Theme.muted)
-                                    Text(profile.name).lineLimit(1)
+                                    Text(profile.name).lineLimit(1).layoutPriority(1)
+                                    Text(profile.username).foregroundStyle(Theme.muted)
+                                        .lineLimit(1).truncationMode(.middle)
                                     Spacer()
                                 }.padding(.horizontal, 9).frame(maxWidth: .infinity, maxHeight: .infinity)
                             }.frame(height: 34)
