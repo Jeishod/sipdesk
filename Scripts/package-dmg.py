@@ -58,10 +58,8 @@ APP_SIGNATURE = signature(APP)
 # Distribution mode follows the app's signature: build.sh with a Developer ID identity.
 DEVELOPER_ID = next((line.removeprefix("Authority=") for line in APP_SIGNATURE.splitlines()
                      if line.startswith("Authority=Developer ID Application:")), None)
-NOTARY_PROFILE = os.environ.get("SIPDESK_NOTARY_PROFILE")
+NOTARY_PROFILE = os.environ.get("SIPDESK_NOTARY_PROFILE", "jeishod-notary")
 if DEVELOPER_ID:
-    if not NOTARY_PROFILE:
-        raise SystemExit("Developer ID build: set SIPDESK_NOTARY_PROFILE to a notarytool keychain profile.")
     if "Timestamp=" not in APP_SIGNATURE or "(runtime)" not in APP_SIGNATURE:
         raise SystemExit("Developer ID build needs a secure timestamp and hardened runtime; rebuild with build.sh.")
     SIGNING_NOTE = f"""Signed with {DEVELOPER_ID} and notarized by Apple.
