@@ -35,7 +35,9 @@ def notarize(path, staple_target=None):
     try:
         submission = json.loads(result.stdout)
     except json.JSONDecodeError:
-        raise SystemExit(f"notarytool failed for {path.name}:\n{result.stderr}")
+        raise SystemExit(f"notarytool failed for {path.name}:\n{result.stderr}\n"
+                         f"If the keychain profile '{NOTARY_PROFILE}' is missing, create it once: xcrun notarytool "
+                         f"store-credentials {NOTARY_PROFILE} --key <path-to-AuthKey.p8> --key-id <KEY_ID> --issuer <ISSUER_ID>")
     if submission.get("status") != "Accepted":
         log = subprocess.run(["xcrun", "notarytool", "log", submission["id"], "--keychain-profile", NOTARY_PROFILE],
                              capture_output=True, text=True).stdout
@@ -58,10 +60,8 @@ APP_SIGNATURE = signature(APP)
 # Distribution mode follows the app's signature: build.sh with a Developer ID identity.
 DEVELOPER_ID = next((line.removeprefix("Authority=") for line in APP_SIGNATURE.splitlines()
                      if line.startswith("Authority=Developer ID Application:")), None)
-NOTARY_PROFILE = os.environ.get("SIPDESK_NOTARY_PROFILE")
+NOTARY_PROFILE = os.environ.get("SIPDESK_NOTARY_PROFILE", "jeishod-notary")
 if DEVELOPER_ID:
-    if not NOTARY_PROFILE:
-        raise SystemExit("Developer ID build: set SIPDESK_NOTARY_PROFILE to a notarytool keychain profile.")
     if "Timestamp=" not in APP_SIGNATURE or "(runtime)" not in APP_SIGNATURE:
         raise SystemExit("Developer ID build needs a secure timestamp and hardened runtime; rebuild with build.sh.")
     SIGNING_NOTE = f"""Signed with {DEVELOPER_ID} and notarized by Apple.

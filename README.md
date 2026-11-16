@@ -59,14 +59,18 @@ permission checks.
 ### Notarized DMG
 
 A release DMG that opens without Gatekeeper warnings needs a **Developer ID
-Application** certificate in the login keychain and a `notarytool` keychain profile
-(App Store Connect API key or Apple ID app-specific password), stored once:
+Application** certificate in the keychain search list (selected by name) and a
+`notarytool` keychain profile. The default profile name is `jeishod-notary`; create it
+once:
 
 ```sh
-xcrun notarytool store-credentials sipdesk-notary --key AuthKey_XXXX.p8 --key-id XXXX --issuer <issuer-uuid>
-SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./build.sh
-SIPDESK_NOTARY_PROFILE=sipdesk-notary python3 Scripts/package-dmg.py
+xcrun notarytool store-credentials jeishod-notary --key <path-to-AuthKey.p8> --key-id <KEY_ID> --issuer <ISSUER_ID>
+SIGNING_IDENTITY="Developer ID Application: <Your Name> (<TEAM_ID>)" ./build.sh
+python3 Scripts/package-dmg.py
 ```
+
+`package-dmg.py` uses `jeishod-notary` by default; set `SIPDESK_NOTARY_PROFILE` to
+use a profile with another name.
 
 `build.sh` signs with hardened runtime and a secure timestamp. `package-dmg.py`
 notarizes and staples the app, signs the DMG, notarizes and staples it as well, and
