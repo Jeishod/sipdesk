@@ -58,20 +58,13 @@ permission checks.
 
 ### Notarized DMG
 
-A release DMG that opens without Gatekeeper warnings needs a **Developer ID
-Application** certificate in the login keychain and a `notarytool` keychain profile
-(App Store Connect API key or Apple ID app-specific password), stored once:
-
-```sh
-xcrun notarytool store-credentials sipdesk-notary --key AuthKey_XXXX.p8 --key-id XXXX --issuer <issuer-uuid>
-SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./build.sh
-SIPDESK_NOTARY_PROFILE=sipdesk-notary python3 Scripts/package-dmg.py
-```
-
-`build.sh` signs with hardened runtime and a secure timestamp. `package-dmg.py`
-notarizes and staples the app, signs the DMG, notarizes and staples it as well, and
-fails unless `spctl` reports `source=Notarized Developer ID` for both. With an
-ad-hoc build it produces an unsigned, non-notarized development DMG.
+A release DMG that opens without Gatekeeper warnings is built locally with
+`make release` (tests, ad-hoc build, Developer ID signing, notarization, DMG, GitHub
+Release). It needs a **Developer ID Application** certificate in the keychain search
+list and notarization credentials, both handled by the maintainer's local
+`jeishod-release` tool; `make release DRY_RUN=1` previews the steps without signing or
+uploading. `build.sh` alone (or `make build`) produces an ad-hoc signed development
+app, and `Scripts/package-dmg.py` then produces an unsigned, non-notarized DMG.
 
 ### Connect your line
 
@@ -99,9 +92,8 @@ call signaling, synthetic RTP, DTMF, hold/resume, mute, busy, cancel/decline, IP
 and rejection of an untrusted TLS certificate. It needs no real account, PBX or
 microphone; dependency bootstrap needs network access on the first run.
 
-[CI](.github/workflows/ci.yml) runs the same headless tests on an Apple Silicon
-macOS runner. It does **not** run GUI tests, request permissions, upload binaries
-or publish releases. GUI checks require a local graphical macOS session.
+`make test` runs the same headless tests locally. They do **not** run GUI tests or
+request permissions; GUI checks require a local graphical macOS session.
 See [development notes](docs/development.md) for architecture and local UI checks,
 and [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidance.
 

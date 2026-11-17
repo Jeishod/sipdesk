@@ -11,3 +11,11 @@ Git repo, origin Jeishod/sipdesk. Work in worktrees (`agent-worktree create`); `
 - Access: `linear-jeishod` CLI (`~/.agents/tools/linear-jeishod`), not the Gen2B Linear MCP connector. Only the main session writes to Linear; subagents draft and report.
 - Statuses: Backlog/Todo → In Progress → In Review → Done, moved after the real result (PR merged / deploy verified).
 - Issue and PR text in English.
+
+## Release
+
+- Local only (Andrei, 2026-11-16): build, sign, notarize and tag happen on this Mac. No GitHub Actions, no cloud CI; tests run through `make test`.
+- `make release [DRY_RUN=1]`: `make test` → `make build` (ad-hoc app) → `jeishod-release mac-sign` (Developer ID, hardened runtime) → `mac-notarize` (+ staple) → `Scripts/package-dmg.py` (DMG with sources, signed, notarized through `jeishod-release mac-notarize`) → `jeishod-release gh-release v<VERSION>` with the DMG and its sha256 attached. `VERSION` comes from `Resources/Info.plist` (`CFBundleShortVersionString`); override with `make release VERSION=x.y.z`. `DRY_RUN=1` prints the sign/notarize/release commands via `--dry-run` and skips test, build and DMG packaging.
+- Needs an unlocked signing keychain and the notary credentials: run `jeishod-release doctor` first. A real release needs Andrei's "да".
+- Keys live outside the repo: `~/Documents/AppStore Connect/Andrei Beliaev/` (Apple signing keychain, App Store Connect key). Never commit key ids, issuer ids or paths.
+- Full reference: `~/.agents/skills/jeishod-release/SKILL.md`.

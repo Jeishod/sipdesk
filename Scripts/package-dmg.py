@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Package the tested tray app, installation notes, and build sources."""
 import hashlib
-import json
 import os
 from pathlib import Path
 import plistlib
@@ -27,22 +26,12 @@ def signature(path):
     return subprocess.run(["codesign", "-dvvv", str(path)], check=True, capture_output=True, text=True).stderr
 
 
-def notarize(path, staple_target=None):
-    """Submit to Apple's notary service, then staple and validate the ticket."""
-    staple_target = staple_target or path
-    result = subprocess.run(["xcrun", "notarytool", "submit", str(path), "--keychain-profile", NOTARY_PROFILE,
-                             "--wait", "--output-format", "json"], capture_output=True, text=True)
-    try:
-        submission = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        raise SystemExit(f"notarytool failed for {path.name}:\n{result.stderr}")
-    if submission.get("status") != "Accepted":
-        log = subprocess.run(["xcrun", "notarytool", "log", submission["id"], "--keychain-profile", NOTARY_PROFILE],
-                             capture_output=True, text=True).stdout
-        raise SystemExit(f"Notarization of {path.name} is {submission.get('status')} ({submission.get('id')}):\n{log}")
-    print(f"Notarized {path.name}: {submission['id']}")
-    run("xcrun", "stapler", "staple", str(staple_target))
-    run("xcrun", "stapler", "validate", str(staple_target))
+RELEASE_TOOL = os.environ.get("JEISHOD_RELEASE", "jeishod-release")
+
+
+def notarize(path):
+    """Notarize, staple and spctl-check through the shared local release tool."""
+    subprocess.run([RELEASE_TOOL, "mac-notarize", str(path)], check=True)
 
 
 def assess(*args):
@@ -58,10 +47,7 @@ APP_SIGNATURE = signature(APP)
 # Distribution mode follows the app's signature: build.sh with a Developer ID identity.
 DEVELOPER_ID = next((line.removeprefix("Authority=") for line in APP_SIGNATURE.splitlines()
                      if line.startswith("Authority=Developer ID Application:")), None)
-NOTARY_PROFILE = os.environ.get("SIPDESK_NOTARY_PROFILE")
 if DEVELOPER_ID:
-    if not NOTARY_PROFILE:
-        raise SystemExit("Developer ID build: set SIPDESK_NOTARY_PROFILE to a notarytool keychain profile.")
     if "Timestamp=" not in APP_SIGNATURE or "(runtime)" not in APP_SIGNATURE:
         raise SystemExit("Developer ID build needs a secure timestamp and hardened runtime; rebuild with build.sh.")
     SIGNING_NOTE = f"""Signed with {DEVELOPER_ID} and notarized by Apple.
@@ -79,9 +65,9 @@ with tempfile.TemporaryDirectory(prefix="sipdesk-dmg-", dir=os.environ["TMPDIR"]
     shutil.copytree(APP, stage / APP.name, symlinks=True)
     if DEVELOPER_ID:
         # Staple the app itself so it passes Gatekeeper offline after leaving the DMG.
-        submission = work / "SIPDesk-notarization.zip"
-        run("ditto", "-c", "-k", "--keepParent", str(stage / APP.name), str(submission))
-        notarize(submission, stage / APP.name)
+        # `make release` already notarized and stapled the app; the copy keeps the ticket.
+        if subprocess.run(["xcrun", "stapler", "validate", str(stage / APP.name)], capture_output=True).returncode != 0:
+            notarize(stage / APP.name)
         assess("--type", "execute", stage / APP.name)
     (stage / "Applications").symlink_to("/Applications")
     (stage / "INSTALL.txt").write_text(f"""SIPDesk — Tray edition {VERSION}
